@@ -67,7 +67,7 @@ GpsrHelper::Install (void) const
     {
       Ptr<Node> node = (*i);
       Ptr<UdpL4Protocol> udp = node->GetObject<UdpL4Protocol> ();
-      Ptr<gpsr::RoutingProtocol> gpsr = Create (node); //this sentence is to install every node with a gpsr routing.
+      Ptr<gpsr::RoutingProtocol> gpsr = node->GetObject<gpsr::RoutingProtocol> ();
       gpsr->SetDownTarget (udp->GetDownTarget ());
       udp->SetDownTarget (MakeCallback(&gpsr::RoutingProtocol::AddHeaders, gpsr));
     }
