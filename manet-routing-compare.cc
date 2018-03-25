@@ -373,6 +373,8 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
     case 4:
       m_protocolName = "DSR";
       break;
+    case 5:
+      m_protocolName = "GPSR";
     default:
       NS_FATAL_ERROR ("No such protocol:" << m_protocol);
     }
@@ -386,6 +388,16 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
     {
       internet.Install (adhocNodes);
       dsrMain.Install (dsr, adhocNodes);
+    }
+  else if (m_protocol==5)
+    {
+      {
+        GpsrHelper gpsr;
+        internet.SetRoutingHelper (gpsr);
+        internet.Install (adhocNodes);
+      }
+    
+      gpsr.Install();
     }
 
   NS_LOG_INFO ("assigning ip address");
