@@ -353,6 +353,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
   DsdvHelper dsdv;
   DsrHelper dsr;
   DsrMainHelper dsrMain;
+  GpsrHelper gpsr;
   Ipv4ListRoutingHelper list;
   InternetStackHelper internet;
 
