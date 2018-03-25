@@ -78,6 +78,7 @@
 #include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
 #include "wifi-example-apps.h"
+#include "ns3/gpsr-module.h"
 using namespace ns3;
 using namespace dsr;
 
@@ -260,7 +261,7 @@ main (int argc, char *argv[])
   int nSinks = 10;
   double txp = 20;
 
-  for (int protocol = 1; protocol<=4; protocol++)
+  for (int protocol = 2; protocol<=5; protocol++)
   {
       for (int counts = 20; counts <= 120; counts+=5)
     {
