@@ -78,6 +78,7 @@
 #include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
 #include "wifi-example-apps.h"
+#include "ns3/gpsr-module.h"
 using namespace ns3;
 using namespace dsr;
 
@@ -260,7 +261,7 @@ main (int argc, char *argv[])
   int nSinks = 10;
   double txp = 20;
 
-  for (int protocol = 1; protocol<=4; protocol++)
+  for (int protocol = 2; protocol<=5; protocol++)
   {
       for (int counts = 20; counts <= 120; counts+=5)
     {
@@ -352,6 +353,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
   DsdvHelper dsdv;
   DsrHelper dsr;
   DsrMainHelper dsrMain;
+  GpsrHelper gpsr;
   Ipv4ListRoutingHelper list;
   InternetStackHelper internet;
 
@@ -372,6 +374,8 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
     case 4:
       m_protocolName = "DSR";
       break;
+    case 5:
+      m_protocolName = "GPSR";
     default:
       NS_FATAL_ERROR ("No such protocol:" << m_protocol);
     }
@@ -386,7 +390,18 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
       internet.Install (adhocNodes);
       dsrMain.Install (dsr, adhocNodes);
     }
-  
+
+  else if (m_protocol==5)
+    {
+      {
+        GpsrHelper gpsr;
+        internet.SetRoutingHelper (gpsr);
+        internet.Install (adhocNodes);
+      }
+    
+      gpsr.Install();
+    }
+
   NS_LOG_INFO ("assigning ip address");
 
   Ipv4AddressHelper addressAdhoc;
