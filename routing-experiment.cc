@@ -79,6 +79,11 @@
 #include "ns3/applications-module.h"
 #include "wifi-example-apps.h"
 #include "ns3/gpsr-module.h"
+#include "ns3/gpsr-helper.h"
+#include "ns3/mygpsr-module.h"
+#include "ns3/mygpsr-helper.h"
+
+
 using namespace ns3;
 using namespace dsr;
 
@@ -261,16 +266,16 @@ main (int argc, char *argv[])
   int nSinks = 10;
   double txp = 20;
 
-  for (int protocol = 2; protocol<=5; protocol++)
+  for (int protocol = 5; protocol<=5; protocol++)
   {
-      for (int counts = 20; counts <= 120; counts+=5)
+      for (int counts = 20; counts <= 100; counts+=5)
     {
       experiment.Run (nSinks, txp, CSVfileName, protocol, counts);
     }
 
   }
 
-  }
+}
 
 void
 RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int protocol, int nodes)
@@ -354,6 +359,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
   DsrHelper dsr;
   DsrMainHelper dsrMain;
   GpsrHelper gpsr;
+  MyGpsrHelper mygpsr(txp);
   Ipv4ListRoutingHelper list;
   InternetStackHelper internet;
 
@@ -376,6 +382,10 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
       break;
     case 5:
       m_protocolName = "GPSR";
+      break;
+    case 6:
+      m_protocolName = "MYGPSR";
+      break;
     default:
       NS_FATAL_ERROR ("No such protocol:" << m_protocol);
     }
@@ -390,17 +400,24 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
       internet.Install (adhocNodes);
       dsrMain.Install (dsr, adhocNodes);
     }
-
   else if (m_protocol==5)
     {
       {
-        GpsrHelper gpsr;
         internet.SetRoutingHelper (gpsr);
         internet.Install (adhocNodes);
       }
     
       gpsr.Install();
     }
+  else if (m_protocol==6)
+  {
+    {
+        internet.SetRoutingHelper (mygpsr);
+        internet.Install (adhocNodes);
+    }
+    
+      mygpsr.Install(adhocDevices);
+  }
 
   NS_LOG_INFO ("assigning ip address");
 
@@ -421,6 +438,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName, int pro
       factory.SetTypeId ("Sender");
       factory.Set("Destination", Ipv4AddressValue(adhocInterfaces.GetAddress (i)));
       factory.Set("Port", UintegerValue(9));
+      factory.Set("NumPackets", UintegerValue(200));
       Ptr<Sender> sender = factory.Create<Sender>();
 
       Ptr<Node> appSource = NodeList::GetNode (i+nSinks);
