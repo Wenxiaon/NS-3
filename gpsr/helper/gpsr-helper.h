@@ -24,7 +24,9 @@
 #include "ns3/node.h"
 #include "ns3/node-container.h"
 #include "ns3/ipv4-routing-helper.h"
-
+#include "ns3/net-device-container.h"
+#include "ns3/yans-wifi-phy.h"
+#include "ns3/wifi-net-device.h"
 
 
 namespace ns3 {
@@ -34,8 +36,9 @@ namespace ns3 {
  */
 class GpsrHelper : public Ipv4RoutingHelper
 {
+  typedef void (*func) (double);
 public:
-  GpsrHelper ();
+  GpsrHelper (double power);
 
   /**
    * \internal
@@ -63,7 +66,7 @@ public:
    */
   void Set (std::string name, const AttributeValue &value);
 
-  void Install (void) const;
+  void Install (NetDeviceContainer device) const;
 
 private:
   ObjectFactory m_agentFactory;

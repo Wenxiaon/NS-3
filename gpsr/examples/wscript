@@ -24,3 +24,8 @@ def build(bld):
     obj = bld.create_ns3_program('gpsr-test6',
                                  ['wifi', 'internet', 'gpsr'])
     obj.source = 'gpsr-test6.cc'
+
+    obj = bld.create_ns3_program('gpsr-test7',
+                                 ['wifi', 'internet', 'gpsr'])
+    obj.source = 'gpsr-test7.cc'
+

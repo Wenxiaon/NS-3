@@ -3,6 +3,7 @@
 #include "ns3/log.h"
 #include <algorithm>
 #include <cmath>
+#include <Eigen/Dense>
 
 NS_LOG_COMPONENT_DEFINE ("GpsrTable");
 
@@ -37,7 +38,7 @@ PositionTable::GetEntryUpdateTime (Ipv4Address id)
  */
 //TODO finish velocity
 void
-PositionTable::AddEntry (Ipv4Address id, Vector position)
+PositionTable::AddEntry (Ipv4Address id, Vector position, Vector velocity)
 {
         std::map<Ipv4Address, Metrix >::iterator i = m_table.find (id);
 
@@ -47,7 +48,9 @@ PositionTable::AddEntry (Ipv4Address id, Vector position)
                 m_table.erase (id);
                 Metrix metrix;
                 metrix.position=position;
-                //metrix.velocity=velocity;
+                metrix.velocity.push_back(velocity);//mine
+                if (metrix.velocity.size() >= 4)
+                        metrix.velocity.erase(metrix.velocity.begin());
                 metrix.time=Simulator::Now ();
                 m_table.insert (std::make_pair (id, metrix));
                 return; // 必须返回，否则后面没有办法进行
@@ -57,6 +60,7 @@ PositionTable::AddEntry (Ipv4Address id, Vector position)
         Metrix metrix;
         metrix.position=position;
         metrix.time=Simulator::Now ();
+        metrix.velocity.push_back(velocity);
         m_table.insert (std::make_pair (id, metrix));
 
 }
@@ -255,10 +259,14 @@ PositionTable::Clear ()
 // }
 
 Ipv4Address
-PositionTable::BestNeighbor (Vector position, Vector nodePos, Vector nodeVec)
+PositionTable::BestNeighbor (Vector position, Vector nodePos, Time interval, double range)
 {
   Purge ();
 
+  TableUpdate(interval);
+
+  //through physical layer get the communication range
+  
   double initialDistance = CalculateDistance (nodePos, position);
 
   if (m_table.empty ())
@@ -267,51 +275,48 @@ PositionTable::BestNeighbor (Vector position, Vector nodePos, Vector nodeVec)
       return Ipv4Address::GetZero ();
     }     //if table is empty (no neighbours)
 
-  std::list<Ipv4Address> candidate;
+  Ipv4Address candidate = Ipv4Address::GetZero();
+  
+   //equal my address
   std::map<Ipv4Address, Metrix >::iterator i;
 
   for (i = m_table.begin (); !(i == m_table.end ()); i++)
     {
-
-      if (initialDistance>CalculateDistance (i->second.position, position))
-      //if (initialDistance>CalculateDistance ((i->second.position,position) position))
+      if (CalculateDistance(i->second.position, nodePos) < range)
+      {
+        if (initialDistance>CalculateDistance (i->second.position, position))
+        //if (initialDistance>CalculateDistance ((i->second.position,position) position))
         {
-          candidate.push_back(i->first);
+        //if CalculateDistance(i->second.position, position)<CalculateDistance(m_table.find(candidate)->second.position, position)
+        candidate = i->first;
+        break; //so i equals what? it need to be tested
         }
+      }
     }
-  if(candidate.empty())
+
+  for (std::map<Ipv4Address, Metrix>::iterator j = i; j!=m_table.end(); j++)
+  {
+  if (CalculateDistance(i->second.position, nodePos) < range)
+        {
+        if (initialDistance>CalculateDistance (i->second.position, position))
+        //if (initialDistance>CalculateDistance ((i->second.position,position) position))
+        {
+        if (CalculateDistance(i->second.position, position)<CalculateDistance(m_table.find(candidate)->second.position, position))
+        candidate = i->first;
+        }
+        }
+  }
+
+  if(candidate.IsEqual(Ipv4Address::GetZero()))
      return Ipv4Address::GetZero ();
   else
  {
-  std::list<Ipv4Address>::iterator i = candidate.begin ();
-  Ipv4Address bestFoundID = *candidate.begin();
-  double bestFoundPara = 0;
-  Vector bestPosition;
-  //在前进的邻接点找最优的
-  for (i = candidate.begin (); !(i == candidate.end ()); i++)
-    {
-      Vector tempv=GetVelocity(*i);
-      Vector tempp=GetPosition(*i);
-      double alpha=tempv.x-nodeVec.x;
-      double beta=tempp.x-nodePos.x;
-      double R=250;
-      double gama=tempv.y-nodeVec.y;
-      double sita=tempp.y-nodePos.y;
 
-      double tempt=(sqrt(pow(alpha,2)+pow(beta,2)*pow(R,2)-pow(alpha*sita-beta*gama,2))-(alpha*beta+gama*sita))/(pow(alpha,2)+pow(gama,2));
-
-      if (bestFoundPara < (pow(tempt,1)*pow(CalculateDistance (tempp, nodePos),0)))
-        {
-          bestFoundID = *i;
-          bestFoundPara = pow(tempt,1)*pow(CalculateDistance (tempp, nodePos),0);
-          bestPosition = tempp;
-        }
-
-    }
-    NS_LOG_DEBUG ("BestNeighbor ID: " <<bestFoundID<<"Begin ID" <<*candidate.begin () );
-    NS_LOG_DEBUG ("Send packet to Position: " << bestPosition<<" From position"<<nodePos);
-    return bestFoundID;
-}
+    
+//     NS_LOG_DEBUG ("BestNeighbor ID: " << candidate.Print()); //need to be modified
+//     NS_LOG_DEBUG ("Send packet to Position: " << bestPosition<<" From position"<<nodePos);
+    return candidate;
+ }
 }
 
 //  //找最佳的传输节点 position是给定目的节点的位置，nodePos是源节点速度,nodeVec是发送节点速度
@@ -484,6 +489,47 @@ PositionTable::GetAngle (Vector centrePos, Vector refPos, Vector node){
 
         return real(Angle);
 
+}
+
+
+void PositionTable::TableUpdate (Time interval)
+{
+
+        double T = interval.GetSeconds();
+        
+        for (std::map<Ipv4Address,Metrix>::iterator count = m_table.begin(); count != m_table.end(); count++)
+        {
+                double dist_x = 0;
+                double dist_y = 0;
+
+                double t = Simulator::Now().GetSeconds() - count->second.time.GetSeconds();
+                if (count->second.velocity.size()<4)
+                {
+                        dist_x = count->second.position.x + count->second.velocity.back().x*t;  //calculate the distance with the last updated velocity
+                        dist_y = count->second.position.y + count->second.velocity.back().y*t;
+                }
+                else
+                {
+                        Eigen::Matrix4f metrix;
+                        metrix<< 1, 0, 0, 0,
+                        1, -T, T*T, -T*T*T,
+                        1, -2*T, 4*T*T, -8*T*T*T,
+                        1, -3*T, 9*T*T, -27*T*T*T;
+                        Eigen::Matrix4f inmetrix = metrix.inverse();
+                        Eigen::Vector4f velocity_x(count->second.velocity[3].x, count->second.velocity[2].x, count->second.velocity[1].x, count->second.velocity[0].x);
+                        Eigen::Vector4f coeffx = inmetrix*velocity_x;
+                        Eigen::Vector4f velocity_y(count->second.velocity[3].y, count->second.velocity[2].y, count->second.velocity[1].y, count->second.velocity[0].y);
+                        Eigen::Vector4f coeffy = inmetrix*velocity_y;
+                        
+                        dist_x = count->second.position.x + coeffx[0]*t + 0.5*coeffx[1]*t + double(1)/3*coeffx[2]*t + 0.25*coeffx[3]*t;
+                        dist_y = count->second.position.y + coeffy[0]*t + 0.5*coeffy[1]*t + double(1)/3*coeffy[2]*t + 0.25*coeffy[3]*t;
+                }
+                count->second.position.x = dist_x;
+                count->second.position.y = dist_y;
+                
+        }
+        
+        
 }
 
 

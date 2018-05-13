@@ -62,7 +62,7 @@ public:
   virtual void NotifyRemoveAddress (uint32_t interface, Ipv4InterfaceAddress address);
   virtual void SetIpv4 (Ptr<Ipv4> ipv4);
   virtual void RecvGPSR (Ptr<Socket> socket);
-  virtual void UpdateRouteToNeighbor (Ipv4Address sender, Ipv4Address receiver, Vector Pos);
+  virtual void UpdateRouteToNeighbor (Ipv4Address sender, Ipv4Address receiver, Vector Pos, Vector velocity);
   virtual void SendHello ();
   virtual bool IsMyOwnAddress (Ipv4Address src);
 
@@ -85,6 +85,7 @@ public:
   /// Number of RREQs used for RREQ rate control
   uint16_t m_rreqCount;
   Time HelloInterval;
+  double m_range;
 
   void SetDownTarget (IpL4Protocol::DownTargetCallback callback);
   IpL4Protocol::DownTargetCallback GetDownTarget (void) const;
@@ -93,6 +94,8 @@ public:
   {
     return;
   }
+
+  void UpdatePower (double power);
 
 
 private:
@@ -135,7 +138,7 @@ private:
 
   IpL4Protocol::DownTargetCallback m_downTarget;
 
-
+  double m_txPower;
 
 };
 }

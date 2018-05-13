@@ -19,6 +19,7 @@
 #include <limits>
 #include <ns3/udp-header.h>
 #include "ns3/seq-ts-header.h"
+#include <cmath>
 
 
 #define GPSR_LS_GOD 0
@@ -96,11 +97,13 @@ const uint32_t RoutingProtocol::GPSR_PORT = 666;
 //构造函数，初始化；
 RoutingProtocol::RoutingProtocol ()
         : HelloInterval (Seconds (1)),
+        m_range (500),
         MaxQueueLen (64),
         MaxQueueTime (Seconds (30)),
         m_queue (MaxQueueLen, MaxQueueTime),
         HelloIntervalTimer (Timer::CANCEL_ON_DESTROY),
         PerimeterMode (false)
+        
 {
         m_neighbors = PositionTable ();
 }
@@ -126,6 +129,16 @@ RoutingProtocol::GetTypeId (void)
                                            BooleanValue (false),
                                            MakeBooleanAccessor (&RoutingProtocol::PerimeterMode),
                                            MakeBooleanChecker ())
+                            .AddAttribute ("CommunicationRange", "Calculate transmission range with Power",
+                                           DoubleValue (500.0),
+                                           MakeDoubleAccessor (&RoutingProtocol::m_range),
+                                           MakeDoubleChecker<double>())
+                            .AddAttribute ("TxPower", "Transmission power",
+                                           DoubleValue (20.0),
+                                           MakeDoubleAccessor(&RoutingProtocol::m_txPower),
+                                           MakeDoubleChecker<double>())
+
+
         ;
         return tid;
 }
@@ -356,7 +369,7 @@ RoutingProtocol::RouteOutput (Ptr<Packet> p, const Ipv4Header &header,
         }
         else
         {
-                nextHop = m_neighbors.BestNeighbor (dstPos, myPos,myVec);
+                nextHop = m_neighbors.BestNeighbor (dstPos, myPos, HelloInterval, m_range);
         }
 
         if (nextHop != Ipv4Address::GetZero ())
@@ -515,7 +528,7 @@ RoutingProtocol::SendPacketFromQueue (Ipv4Address dst)
                 //找到目标节点坐标的位置
                 Vector dstPos = m_locationService->GetPosition (dst);
 
-                nextHop = m_neighbors.BestNeighbor (dstPos, myPos,myVec);
+                nextHop = m_neighbors.BestNeighbor (dstPos, myPos, HelloInterval, m_range);
                 if (nextHop == Ipv4Address::GetZero ())
                 {
                         NS_LOG_LOGIC ("Fallback to recovery-mode. Packets to " << dst);
@@ -737,20 +750,41 @@ RoutingProtocol::RecvGPSR (Ptr<Socket> socket)
         Vector Position;
         Position.x = hdr.GetOriginPosx ();
         Position.y = hdr.GetOriginPosy ();
+        // NS_LOG_UNCOND("this is a interupt");
+        
         InetSocketAddress inetSourceAddr = InetSocketAddress::ConvertFrom (sourceAddress);
+        Ipv4Address Ipv4Source = inetSourceAddr.GetIpv4();
+        Vector velocity = PositionTable::GetVelocity (Ipv4Address::ConvertFrom(Ipv4Source));//mine
+
         Ipv4Address sender = inetSourceAddr.GetIpv4 ();
         Ipv4Address receiver = m_socketAddresses[socket].GetLocal ();
         NS_LOG_DEBUG("update position"<<Position.x<<Position.y );
+
+        //update my communication range
+        double positionX;
+        double positionY;
+
+        Ptr<MobilityModel> MM = m_ipv4->GetObject<MobilityModel> ();
+
+        positionX = MM->GetPosition ().x;
+        positionY = MM->GetPosition ().y;
+
+        double distance = sqrt((positionX-Position.x)*(positionX-Position.x) + (positionY-Position.y)*(positionY-Position.y));
+        
+        //double range = 1.0*pow(10,(46.6777+10*3*std::log10(distance/1.0)+real_loss-threshold));
+        double range = distance*pow(10, ((m_txPower+96)/30));
+        m_range = range;
+        
         //更新neighbor的信息
-        UpdateRouteToNeighbor (sender, receiver, Position);
+        UpdateRouteToNeighbor (sender, receiver, Position, velocity);
 
 }
 
 
 void
-RoutingProtocol::UpdateRouteToNeighbor (Ipv4Address sender, Ipv4Address receiver, Vector Pos)
+RoutingProtocol::UpdateRouteToNeighbor (Ipv4Address sender, Ipv4Address receiver, Vector Pos, Vector velocity)
 {
-        m_neighbors.AddEntry (sender, Pos);
+        m_neighbors.AddEntry (sender, Pos, velocity);
 }
 
 
@@ -890,7 +924,7 @@ RoutingProtocol::NotifyRemoveAddress (uint32_t i, Ipv4InterfaceAddress address)
 }
 
 void
-RoutingProtocol::SetIpv4 (Ptr<Ipv4> ipv4)
+RoutingProtocol::SetIpv4 (Ptr<Ipv4> ipv4)//when internetstack was created, it was called by Ipv4Protocol
 {
         NS_ASSERT (ipv4 != 0);
         NS_ASSERT (m_ipv4 == 0);
@@ -1063,7 +1097,7 @@ RoutingProtocol::AddHeaders (Ptr<Packet> p, Ipv4Address source, Ipv4Address dest
         }
         else
         {
-                nextHop = m_neighbors.BestNeighbor (m_locationService->GetPosition (destination), myPos,myVec);
+                nextHop = m_neighbors.BestNeighbor (m_locationService->GetPosition (destination), myPos, HelloInterval, m_range);
         }
 
         uint16_t positionX = 0;
@@ -1174,7 +1208,7 @@ RoutingProtocol::Forwarding (Ptr<const Packet> packet, const Ipv4Header & header
         }
         else
         {
-                nextHop = m_neighbors.BestNeighbor (Position, myPos, myVec);
+                nextHop = m_neighbors.BestNeighbor (Position, myPos, HelloInterval, m_range);
         }
 
         if (nextHop != Ipv4Address::GetZero ())
@@ -1274,6 +1308,11 @@ RoutingProtocol::GetDownTarget (void) const
         return m_downTarget;
 }
 
+void
+RoutingProtocol::UpdatePower (double power)
+{
+        m_txPower = power;
+}
 
 }
 

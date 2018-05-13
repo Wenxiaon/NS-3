@@ -14,6 +14,8 @@
 #include "ns3/wifi-mac-header.h"
 #include "ns3/random-variable-stream.h"
 #include <complex>
+#include <vector>
+#include "ns3/wifi-phy.h"
 
 namespace ns3 {
 namespace gpsr {
@@ -38,7 +40,7 @@ public:
   /**
    * \brief Adds entry in position table
    */
-  void AddEntry (Ipv4Address id, Vector position);
+  void AddEntry (Ipv4Address id, Vector position, Vector velocity);
 
   /**
    * \brief Deletes entry in position table
@@ -50,14 +52,14 @@ public:
    * \param id Ipv4Address to get position from
    * \return Position of that id or NULL if not known
    */
-  Vector GetPosition (Ipv4Address id);
+  static Vector GetPosition (Ipv4Address id);
 
   /**
    * \brief Gets position from Velocity table
    * \param id Ipv4Address to get position from
    * \return Velocity of that id or NULL if not known
    */
-  Vector GetVelocity (Ipv4Address id);
+  static Vector GetVelocity (Ipv4Address id);
 
   /**
    * \brief Checks if a node is a neighbour
@@ -90,7 +92,7 @@ public:
    * \param nodePos the position of the node that has the packet
    * \return Ipv4Address of the next hop, Ipv4Address::GetZero () if no nighbour was found in greedy mode
    */
-  Ipv4Address BestNeighbor (Vector position, Vector nodePos, Vector nodeVec);
+  Ipv4Address BestNeighbor (Vector position, Vector nodePos, Time interval, double range);
 
   bool IsInSearch (Ipv4Address id);
 
@@ -117,13 +119,15 @@ public:
   //Gives angle between the vector CentrePos-Refpos to the vector CentrePos-node counterclockwise
   double GetAngle (Vector centrePos, Vector refPos, Vector node);
 
+  virtual void TableUpdate (Time interval);
+
 
 
 private:
   struct Metrix
   {
   Vector position;
-  Vector velocity;
+  std::vector <Vector> velocity;
   Time  time;
   };
   Time m_entryLifeTime;
